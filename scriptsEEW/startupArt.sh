@@ -79,7 +79,7 @@ line "-_"
 
 echo
 figlet_centered big "CeGrid"
-figlet_centered small " 2-D AIRFOIL MESHER" 27 33 39 45 51 57
+figlet_centered small " 2/3-D AIRFOIL MESHER" 27 33 39 45 51 57
 # figlet_centered small "MESHER" 27 33 39 45 51 57
 echo
 center "YeAh, BaBy!!!"
