@@ -1,0 +1,358 @@
+import numpy as np
+import sys
+import os
+import matplotlib.pyplot as plt
+from scipy.interpolate import splprep, splev
+
+# WORKS ONLY FOR EPPLER61 RIGHT NOW!!!!!
+
+if len(sys.argv) < 5:
+    print("Usage (Uniform):  python3 dat_to_geo.py {filename} {pathToWD} {BL_UNIFORM}")
+    print("Usage (Variable): python3 dat_to_geo.py {filename} {pathToWD} {BL_TE_UPPER} {BL_TE_LOWER}")
+    sys.exit(1)
+
+name = sys.argv[1]
+SCRIPT_DIR = sys.argv[2]
+
+# Flexible arguments to support both uniform and variable thickness
+BL_TE_UPPER = float(sys.argv[3])
+GROUND = float(sys.argv[4])
+GNDClr = 0.1*GROUND
+AOA_DEG = float(sys.argv[5])
+first_layerH = float(sys.argv[6])
+NUMlayers = float(sys.argv[7])
+PLOT = float(sys.argv[8])
+
+BL_TE_LOWER = min(GROUND-GNDClr,BL_TE_UPPER) 
+BL_LE = min(BL_TE_LOWER + 0.9 * np.sin(np.radians(AOA_DEG)), BL_TE_UPPER)
+
+# -------------------------------------------------
+# Growth Rate
+# -------------------------------------------------
+from scipy.optimize import brentq
+
+def find_growth_rate(H, y1, N):
+    # Objective function: Total Thickness Error = 0
+    def objective(r):
+        if abs(r - 1.0) < 1e-9:
+            return y1 * N - H
+        return y1 * (1 - r**N) / (1 - r) - H
+    
+    # Growth rate is usually between 1.01 and 1.5
+    return brentq(objective, 0.95, 2.0)
+
+# Example usage:
+# H = BL_TE_UPPER (total thickness), y1 = first_layerH (first layer), N = 100 (layers)
+growthR_TEup = find_growth_rate(H=BL_TE_UPPER, y1=first_layerH, N=NUMlayers)
+growthR_TElow = find_growth_rate(H=BL_TE_LOWER, y1=first_layerH, N=NUMlayers)
+growthR_LE = find_growth_rate(H=BL_LE, y1=first_layerH, N=NUMlayers)
+
+# -------------------------------------------------
+# Controls
+# -------------------------------------------------
+NRESAMPLE = 250
+LE_BUNCHING = 2.0  # Higher = significantly denser at the Leading Edge
+TE_BUNCHING = 1.0  # Higher = denser at the Trailing Edge
+GROWTH_EXP = 0.1   # 1.0 = linear BL thickness growth, < 1.0 = rapid initial growth
+
+def bunching_array(n, power_start, power_end):
+    """
+    Maps a linear space to a clustered space.
+    High power_start clusters near the start index. 
+    High power_end clusters near the end index.
+    """
+    t = np.linspace(0, 1, n)
+    res = np.zeros(n)
+    for i in range(1, n - 1):
+        res[i] = (t[i]**power_start) / (t[i]**power_start + (1.0 - t[i])**power_end)
+    res[-1] = 1.0
+    return res
+
+def Translate(translate, coords):
+    tx, ty = translate
+    xs, ys = coords
+    xs = np.array(xs)
+    ys = np.array(ys)
+    xs += tx
+    ys += ty
+    coords = (xs, ys)
+    return coords
+
+def Rotate(angle, coords, point=(0, 0)):
+    # Move rotation point to origin
+    coords = Translate((-point[0], -point[1]), coords)
+
+    xs, ys = coords
+    angle_rad = np.radians(angle)
+
+    cos_a = np.cos(angle_rad)
+    sin_a = np.sin(angle_rad)
+
+    # Rotate about origin
+    xs_rot = xs * cos_a - ys * sin_a
+    ys_rot = xs * sin_a + ys * cos_a
+
+    coords = (xs_rot, ys_rot)
+
+    # Move back
+    coords = Translate(point, coords)
+
+    return coords
+
+def evalNormals(spline, coords):
+    tck, u_spline = spline
+    x_spline, y_spline = coords
+    dx, dy = splev(u_spline, tck, der=1)
+    mag = np.hypot(dx, dy)
+    nx = -dy / mag
+    ny = dx / mag
+
+    # Ensure normals point outward
+    cx, cy = np.mean(x_spline), np.mean(y_spline)
+    dot_products = nx * (x_spline - cx) + ny * (y_spline - cy)
+    if np.sum(dot_products) < 0:
+        nx, ny = -nx, -ny
+    
+    return (nx,ny)
+
+def ArcLens(coords): #returns array of cumulative lengths
+    xs, ys = coords
+    n = len(xs)
+    arclength = np.zeros(n)
+    
+    for i in range(1,n):
+        length = np.hypot(xs[i] - xs[i-1], ys[i] - ys[i-1])
+        arclength[i] = arclength[i-1] + length
+    arclength /= np.max(arclength)
+    return arclength
+
+
+
+# -------------------------------------------------
+# 1. Read Data & Spline
+# -------------------------------------------------
+raw = np.loadtxt(name)
+if np.allclose(raw[0], raw[-1]):
+    raw = raw[:-1]
+
+
+# splprep fits a smooth curve parameterized by u (0 to 1)
+tck, u_raw = splprep([raw[:, 0], raw[:, 1]], s=0.0, k=3, per=False)
+
+u_new = u_raw
+x_new, y_new = splev(u_new, tck)
+
+# -------------------------------------------------
+# 3. Strictly Enforce (1.0, 0.0) at Trailing Edges
+# -------------------------------------------------
+x_new[0], y_new[0] = 1.0, 0.0
+x_new[-1], y_new[-1] = 1.0, 0.0
+
+u_thick_hi = float(u_new[np.argmax(y_new)])
+u_thick_lo = float(u_new[np.argmin(y_new)])
+
+thick_hi = int(np.argmax(y_new))
+thick_lo = int(np.argmin(y_new))
+
+if thick_hi<thick_lo: #anticlockwise, TE-LE-TE
+    x_top = x_new[:thick_hi]
+    y_top = y_new[:thick_hi]
+    
+    x_bot = x_new[thick_lo:]
+    y_bot = y_new[thick_lo:]  
+
+if thick_hi>thick_lo: #clockwise, TE-LE-TE
+    x_top = x_new[thick_hi:]
+    y_top = y_new[thick_hi:]
+    
+    x_bot = x_new[:thick_lo]
+    y_bot = y_new[:thick_lo]
+
+# tck_top, u_top = splprep([x_top, y_top], s=0.0, k=3, per=False)
+# tck_bot, u_bot = splprep([x_bot, y_bot], s=0.0, k=3, per=False)
+
+bot_angle = AOA_DEG - 0.5 # this angle should be such that the leading end does not strike the ground(perhaps use BL_LE to figure out??)
+x_off_bot, y_off_bot = Translate((0,-BL_TE_LOWER),Rotate(bot_angle, (x_bot, y_bot), (1,0)))
+
+x_off_top, y_off_top = Translate((0,BL_TE_UPPER),Rotate(bot_angle, (x_top, y_top), (1,0)))
+
+if (x_top[0] == 1) and (y_top[0] == 0): # i.e. if anticlockwise, TE-LE-TE
+    BL_hi = np.hypot((x_top[-1]-x_off_top[-1]),(y_top[-1]-y_off_top[-1]))
+    BL_lo = np.hypot((x_bot[0]-x_off_bot[0]),(y_top[0]-y_off_bot[0]))
+
+else: # i.e. if clockwise, TE-LE-TE
+    BL_hi = np.hypot((x_top[0]-x_off_top[0]),(y_top[0]-y_off_top[0]))
+    BL_lo = np.hypot((x_bot[-1]-x_off_bot[-1]),(y_top[-1]-y_off_bot[-1]))
+
+
+x_nose = x_new[min(thick_lo, thick_hi):max(thick_lo, thick_hi)]
+y_nose = y_new[min(thick_lo, thick_hi):max(thick_lo, thick_hi)]
+
+x_nose, y_nose = Rotate(-AOA_DEG, (x_nose, y_nose)) #this rotate so that we can check ground level using just y
+tck_nose, u_nose = splprep([x_nose, y_nose], s=0.0, k=3, per=False)
+nx_nose, ny_nose = evalNormals((tck_nose, u_nose),(x_nose, y_nose))
+
+if (x_top[0] == 1) and (y_top[0] == 0): # i.e. if anticlockwise, TE-LE-TE
+    x_nose,y_nose = (x_nose[::-1],y_nose[::-1])
+    nx_nose, ny_nose = (nx_nose[::-1],ny_nose[::-1])
+
+N_nose = len(x_nose)
+
+arclens = ArcLens((x_nose,y_nose))
+
+# print(arclens)
+
+# -------------------------------------------------
+# Boundary-layer thickness over the nose
+# -------------------------------------------------
+
+Dists = np.zeros(N_nose)
+
+for i in range(N_nose):
+
+    # arclens already runs from 0 -> 1
+    s = arclens[i]
+
+    # desired thickness between lower and upper values
+    target = BL_lo + (BL_hi - BL_lo) * s**GROWTH_EXP
+
+    # maximum distance before the offset would touch the ground
+    if ny_nose[i] < 0:
+        ground_limit = (GROUND + y_nose[i]) / (-ny_nose[i])
+    else:
+        ground_limit = 1e9
+
+    Dists[i] = min(target, ground_limit)
+
+# -------------------------------------------------
+# Smooth the distance field
+# -------------------------------------------------
+
+for _ in range(5):
+    Dists[1:-1] = (
+        0.25*Dists[:-2]
+        + 0.50*Dists[1:-1]
+        + 0.25*Dists[2:]
+    )
+
+# keep end values fixed
+Dists[0]  = BL_lo
+Dists[-1] = BL_hi
+
+# -------------------------------------------------
+# Offset nose
+# -------------------------------------------------
+
+x_nose = x_nose + Dists*nx_nose
+y_nose = y_nose + Dists*ny_nose
+
+if (x_top[0] == 1) and (y_top[0] == 0): # i.e. if anticlockwise, TE-LE-TE
+    x_nose = x_nose[::-1]
+    y_nose = y_nose[::-1]
+
+x_off_nose, y_off_nose = Rotate(AOA_DEG, (x_nose, y_nose))
+
+if (x_top[0] == 1) and (y_top[0] == 0): # i.e. if anticlockwise, TE-LE-TE
+    x_off = np.concatenate((x_off_top, x_off_nose, x_off_bot))
+    y_off = np.concatenate((y_off_top, y_off_nose, y_off_bot))
+
+else: # i.e. if clockwise, TE-LE-TE
+    x_off = np.concatenate((x_off_bot, x_off_nose, x_off_top))
+    y_off = np.concatenate((y_off_bot, y_off_nose, y_off_top))
+
+tck_off, u_off = splprep([x_off, y_off], s=0.0, k=3, per=False)
+u_dense = np.linspace(0.0, 1.0, NRESAMPLE)
+x_off, y_off = splev(u_dense, tck_off)
+x_new, y_new = splev(u_dense, tck)
+
+n = len(x_new)
+
+# -------------------------------------------------
+# Split by arc length instead of LE index
+# -------------------------------------------------
+
+arc_air = ArcLens((x_new, y_new))
+arc_off = ArcLens((x_off, y_off))
+
+# Note: Gmsh uses a negative angle in the script, which rotates clockwise.
+# Rotate Airfoil Points to Global Frame
+translate = (0,0)
+x_glob, y_glob = Translate(translate, Rotate(-AOA_DEG, (x_new,y_new)))
+
+# Rotate Boundary Layer Edge Points to Global Frame
+x_off_glob, y_off_glob = Translate(translate, Rotate(-AOA_DEG, (x_off,y_off)))
+split_air = np.argmin(np.abs(x_glob))
+split_off = np.argmin(np.abs(y_off_glob))
+
+# Airfoil
+airfoil_up_ids = list(range(1, split_air + 2))
+airfoil_low_ids = list(range(split_air + 1, n)) + [1]
+
+# Offset
+off_up_ids = list(range(n + 1, n + split_off + 2))
+off_low_ids = list(range(n + split_off + 1, 2*n + 1))
+
+with open(f"{SCRIPT_DIR}/scriptsEEW/Airfoil_points.geo", "w") as f:
+    f.write("// Airfoil points\n")
+    for i, (xv, yv) in enumerate(zip(x_new, y_new)):
+        f.write(f"Point({i + 1}) = {{{xv}, {yv}, 0, 1.0}};\n")
+
+    f.write("\n// Offset boundary points\n")
+    for i, (xv, yv) in enumerate(zip(x_off, y_off)):
+        f.write(f"Point({n + i + 1}) = {{{xv}, {yv}, 0, 1.0}};\n")
+
+    f.write(f"\nBSpline(1) = {{{','.join(map(str, airfoil_up_ids))}}}; // Airfoil Upper\n")
+    f.write(f"BSpline(2) = {{{','.join(map(str, airfoil_low_ids))}}}; // Airfoil Lower\n")
+    f.write(f"BSpline(3) = {{{','.join(map(str, off_up_ids))}}}; // Offset Upper\n")
+    f.write(f"BSpline(4) = {{{','.join(map(str, off_low_ids))}}}; // Offset Lower\n")
+
+    # Export dynamic point counts so Transfinite Meshing matches exactly
+    # f.write(f"\nN_UP = {int(NRESAMPLE*arc_off[split_off])};\n")
+    # f.write(f"N_LOW = {int(NRESAMPLE*(1-arc_off[split_off]))};\n")
+    f.write(f"\nN_UP = {int(NRESAMPLE//2)};\n")
+    f.write(f"N_LOW = {int(NRESAMPLE//2)};\n")
+
+    f.write(f"\nLEpoint = {split_air + 1};\n")
+    f.write(f"LEoff = {n + split_off + 1};\n")
+    f.write(f"TEpoint = {1};\n")
+    f.write(f"TEoff_up = {n + 1};\n")
+    f.write(f"TEoff_low = {2 * n};\n")
+    f.write(f"BLAirfoilUp = {BL_TE_UPPER:.4};\n")
+    f.write(f"BLAirfoilLow = {BL_TE_LOWER:.4};\n")
+    f.write(f"hc = {GROUND};\n")
+    f.write(f"grTEup = {growthR_TEup:.4f};\n")
+    f.write(f"grTElow = {growthR_TElow:.4f};\n")
+    f.write(f"grLE = {growthR_LE:.4f};\n")
+    f.write(f"NUMlayers = {NUMlayers};\n")
+
+# -------------------------------------------------
+# 7. Diagnostic Plotting (Global Frame Rendering)
+# -------------------------------------------------
+if PLOT:
+    # 2D Rotation Matrix to match Gmsh's Rotate {{0,0,1}, {0,0,0}, -AoA_rad}
+    aoa_rad = np.radians(AOA_DEG)
+
+    # --- Plotting ---
+    plt.figure(figsize=(10, 5))
+    plt.plot(x_glob, y_glob, 'k.-', linewidth=1.5, markersize=3, label='Resampled Airfoil (Global)')
+    plt.plot(x_off_glob, y_off_glob, 'r.-', linewidth=1.5, markersize=3, label='Boundary Layer Edge (Global)')
+
+    # Draw tie-lines cleanly in the Global Frame
+    for i in range(0, n, 4):
+        plt.plot([x_glob[i], x_off_glob[i]], [y_glob[i], y_off_glob[i]], color='gray', alpha=0.4, linewidth=0.8)
+
+    # --- DRAW THE GROUND LINE (Dead simple in Global Frame) ---
+    x_span = np.linspace(np.min(x_off_glob) - 0.2, np.max(x_off_glob) + 0.5, 100)
+    y_ground = np.full_like(x_span, -GROUND-np.sin(aoa_rad))  # Horizontal flat line
+
+    plt.plot(x_span, y_ground, color='brown', linestyle='--', linewidth=2.0, label=f'Ground Plane (y = {-GROUND})')
+    # -----------------------------------------------------------
+
+    plt.axis('equal')
+    plt.grid(True, linestyle='--', alpha=0.6)
+    plt.legend()
+    plt.xlabel('Global X')
+    plt.ylabel('Global Y')
+    plt.title(f'Global Frame Check (AoA = {AOA_DEG}°, Ground H/C = {GROUND})')
+    plt.tight_layout()
+    plt.show()

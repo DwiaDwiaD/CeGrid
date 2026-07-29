@@ -1,0 +1,212 @@
+#!/bin/bash
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+SCRIPT_NAME="$(basename -- "${BASH_SOURCE[0]}")"
+# SCRIPT_PATH="$SCRIPT_DIR/$SCRIPT_NAME"
+CASE_DIR="$(pwd)"
+
+set -e
+
+# Make scripts executable only if needed
+if find "$SCRIPT_DIR/scriptsEEW" -name "*.sh" ! -executable | grep -q .; then
+    echo "Setting executable permissions on shell scripts..."
+    find "$SCRIPT_DIR/scriptsEEW" -name "*.sh" -exec chmod +x {} \;
+fi
+# this makes the directory if it doesn't exist
+mkdir -p ./meshesEEW
+
+# Just some startup art for fun
+"$SCRIPT_DIR/scriptsEEW/startupArt.sh"
+
+# ------------------------------------
+#    Functional script starts here
+# ------------------------------------
+
+set -euo pipefail
+trap 'echo "Error occured in run script"; exit 1' ERR
+
+echo "NOTE: Script(${SCRIPT_NAME}) is located in: $SCRIPT_DIR"
+
+# -------- DEFAULTS --------
+name=""
+CHORD=1.0
+AOA_DEG=10
+SPAN=0.01
+EXTRUDE_LAYERS=1
+FIRST_LAYER=1e-3
+NUM_LAYERS=100
+BLAirfoilUp=0.1
+GROUND=1
+FILLED=0
+PLOT=0
+QUADS=0
+DIM=2
+HELP=false
+
+# -------- PARSE FLAGS --------
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    -f|--filename)
+      name="$2"; shift 2 ;;
+    -c|--chord)
+      CHORD="$2"; shift 2 ;;
+    -a|--aoa)
+      AOA_DEG="$2"; shift 2 ;;
+    -s|--span)
+      SPAN="$2"; shift 2 ;;
+    -l|--extrude-layers)
+      EXTRUDE_LAYERS="$2"; shift 2 ;;
+    -y|--first-layer)
+      FIRST_LAYER="$2"; shift 2 ;;
+    -t|--bl-thickness)
+      BLAirfoilUp="$2"; shift 2 ;;
+    -n|--num-bl-layers)
+      NUM_LAYERS="$2"; shift 2 ;;
+    -g|--ground)
+      GROUND="$2"; shift 2 ;;
+    -d|--dim)
+      DIM="$2"; shift 2 ;;
+    -x|--filled)
+      FILLED=1; shift ;;
+    -p|--plot)
+      PLOT=1; shift ;;
+    -q|--quads)
+      QUADS=1; shift ;;
+    -h|--help)
+      HELP=true; shift ;;
+    *)
+      echo "Unknown option: $1"
+      exit 1 ;;
+  esac
+done
+
+USAGE="USAGE: ./${SCRIPT_NAME} -f <airfoil_name> [-c chord] [-a AoA_deg] [-s span] [-l extrude_layers] [-y first_layer_height_BL] [-t max_BL_thickness] [-n BL_layers] [-g ground_height] [-d meshingDim(2D/3D)] [-x filled/unfilled] [-p plot/no-plot] [-q quads/triangles(BL only)] [-h help]"
+
+help=$(cat <<EOF
+
+Usage:
+  ./${SCRIPT_NAME} -f <airfoil_name> [options]
+
+Required:
+  -f, --filename <name>
+        Airfoil filename (without extension, if applicable).
+
+Geometry:
+  -c, --chord <m>
+        Airfoil chord length in metres.
+        Default: 1.0
+
+  -a, --aoa <deg>
+        Angle of attack in degrees.
+        Default: 0.0
+
+  -s, --span <m>
+        Spanwise extrusion length in metres (3D only).
+        Default: 1.0
+
+Meshing:
+  -l, --extrude-layers <count>
+        Number of cells/layers through the span direction.
+        (Integer)
+
+  -y, --first-layer <chords>
+        First boundary layer cell height,
+        expressed as a fraction of the chord.
+
+  -t, --bl-thickness <chords>
+        Total boundary layer thickness,
+        expressed as a fraction of the chord.
+
+  -n, --num-bl-layers <count>
+        Number of boundary layer layers.
+        (Integer)
+
+  -g, --ground <chords>
+        Ground distance measured from the trailing edge,
+        expressed as a fraction of the chord.
+  
+  -q, --quads
+        Recombine the structured C-grid into quadrilateral elements.
+
+Simulation:
+  -d, --dim <2D|3D>
+        Generate a 2D or 3D mesh.
+
+Options:
+  -x, --filled
+        Generate a filled airfoil mesh.
+        (Without -x the airfoil remains hollow.)
+  
+  -p, --plot
+        Plot the generated BL boundary curve and airfoil
+
+  -h, --help
+        Display this help message and exit.
+
+Example:
+  ./${SCRIPT_NAME} \
+    -f NACA0012 \
+    -c 1.0 \
+    -a 5 \
+    -d 2D \
+    -y 5e-5 \
+    -t 0.02 \
+    -n 20
+
+EOF
+)
+
+# this has to be ahead of "name" check
+if $HELP; then
+    echo "${help}"
+    echo
+    set +e
+    "$SCRIPT_DIR/scriptsEEW/endingArt.sh"
+    set -e
+    exit 1
+fi
+
+if [ -z "$name" ]; then
+    echo
+    echo "ERROR!: ${SCRIPT_NAME}: missing operand"
+    echo
+    echo "${USAGE}"
+    echo
+    echo "Try '${SCRIPT_NAME} --help' for more information"
+    echo
+    set +e
+    "$SCRIPT_DIR/scriptsEEW/endingArt.sh"
+    set -e
+    exit 1
+fi
+
+
+echo
+echo "Airfoil: $name"
+echo "Chord: $CHORD"
+echo "AoA: $AOA_DEG"
+echo "Span: $SPAN"
+echo "Extrude_Layers: $EXTRUDE_LAYERS"
+echo "FirstLayerHeight : $FIRST_LAYER"
+echo "AirfoilBLthickness : $BLAirfoilUp"
+echo "NumOfBLlayers : $NUM_LAYERS"
+echo "GroundDistance : $GROUND"
+echo "Dim(2D/3D) : $DIM"
+echo "Filled(1(True)/0(False)) : $FILLED"
+echo "Quads : $QUADS"
+echo
+
+
+echo "Converting $name dat file"
+python3 "$SCRIPT_DIR/scriptsEEW/dat_to_geo.py" "${name}.dat" "$SCRIPT_DIR" "$BLAirfoilUp" "$GROUND" "$AOA_DEG" "$FIRST_LAYER" "$NUM_LAYERS" "$PLOT"
+
+echo "Generating mesh..."
+"$SCRIPT_DIR/scriptsEEW/meshEEW.sh" "$name" "$CHORD" "$AOA_DEG" "$SPAN" "$SCRIPT_DIR" "$FIRST_LAYER" "$EXTRUDE_LAYERS" "$FILLED" "$DIM" "$QUADS"
+
+echo "Meshing Done..."
+
+echo
+set +e
+"$SCRIPT_DIR/scriptsEEW/endingArt.sh"
+set -e
