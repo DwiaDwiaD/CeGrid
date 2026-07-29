@@ -2,7 +2,7 @@
 
 **Python • Gmsh**
 
-*A Gmsh-based parametric 2/3-D airfoil mesher that generates high-quality meshes consisting of a C-type structured boundary-layer region and an unstructured outer domain.*
+*A Gmsh-based parametric 2/3-D airfoil meshing pipeline that generates high-quality meshes consisting of a C-type structured boundary-layer region and an unstructured outer domain.*
 
 <p align="center">
   <img src="./Pics/img_norm.png" width="700">
@@ -66,6 +66,14 @@ Example:
 | `-p, --plot` | Plot generated geometry | Disabled |
 | `-q, --quads` | Recombine mesh into quadrilateral elements | Disabled |
 | `-h, --help` | Display help | |
+
+---
+
+## Boundary Layer Detail
+
+<p align="center">
+  <img src="./Pics/img_close.png" width="700">
+</p>
 
 ---
 
