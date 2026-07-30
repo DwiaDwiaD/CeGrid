@@ -1,0 +1,14 @@
+# Text files use Unix (LF) line endings
+* text=auto eol=lf
+
+# Shell scripts
+*.sh text eol=lf
+CeGrid text eol=lf
+
+# Source files
+*.py text eol=lf
+*.geo text eol=lf
+*.dat text eol=lf
+
+# Images
+*.png binary
