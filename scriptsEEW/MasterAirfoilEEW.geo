@@ -293,8 +293,9 @@ ElseIf ((dim == 2) && (filled == True))
     Physical Surface("fluid") = {30,40,41,42,43,99};
 
     Physical Curve("inlet")   = {22};
-    Physical Curve("outlet")  = {24,25};
-    Physical Curve("walls")   = {21,23};
+    Physical Curve("outlet")  = {24,57,-50,25};
+    Physical Curve("topwall")   = {21};
+    Physical Curve("ground")   = {23};
     Physical Curve("airfoil") = {1,2};
 
 ElseIf ((dim == 2) && (filled == False))
@@ -310,8 +311,9 @@ ElseIf ((dim == 2) && (filled == False))
     Physical Surface("fluid") = {30,40,41,42,43};
 
     Physical Curve("inlet")   = {22};
-    Physical Curve("outlet")  = {24,25};
-    Physical Curve("walls")   = {21,23};
+    Physical Curve("outlet")  = {24,57,-50,25};
+    Physical Curve("topwall")   = {21};
+    Physical Curve("ground")   = {23};
     Physical Curve("airfoil") = {1,2};
 
 Else
