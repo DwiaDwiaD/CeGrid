@@ -241,14 +241,68 @@ If ((dim == 3) && (filled == True))
 
     // ----- PHYSICAL GROUPS -----
 
-    Physical Volume("fluid") = {1,2,3,4,5,6};
+    // ----- Find external surfaces -----
 
-    Physical Surface("inlet")   = {62};
-    Physical Surface("outlet")  = {54};
-    Physical Surface("walls")   = {58,50};
-    Physical Surface("airfoil") = {66};
-    Physical Surface("front")   = {67};
-    Physical Surface("back")    = {40};
+    tol = 1e-8 * chord;
+
+    // x = -front
+    inlet[] =
+        Surface In BoundingBox{
+            -front-tol, -far-tol, -tol,
+            -front+tol,  far+tol, span*layers+tol
+        };
+
+    // x = rear
+    outlet[] =
+        Surface In BoundingBox{
+            rear-tol, yTE-ground-tol, -tol,
+            rear+tol, far+tol, span*layers+tol
+        };
+
+    // y = far
+    topwall[] =
+        Surface In BoundingBox{
+            -front-tol, far-tol, -tol,
+            rear+tol,  far+tol, span*layers+tol
+        };
+
+    // y = yTE-ground
+    ground[] =
+        Surface In BoundingBox{
+            -front-tol, yTE-ground-tol, -tol,
+            rear+tol,  yTE-ground+tol, span*layers+tol
+        };
+
+    // z = 0
+    backSurf[] =
+        Surface In BoundingBox{
+            -front-tol, yTE-ground-tol, -tol,
+            rear+tol,  far+tol, tol
+        };
+
+    // z = span
+    frontSurf[] = //because extrusion is done along positive axis!
+        Surface In BoundingBox{
+            -front-tol, yTE-ground-tol, span*layers-tol,
+            rear+tol,  far+tol, span*layers+tol
+        };
+        
+    // ----- PHYSICAL GROUPS -----
+
+    Physical Volume("fluid") = {1,2,3,4,5};
+
+    Physical Surface("inlet")   = inlet[];
+    Physical Surface("outlet")  = outlet[];
+    Physical Surface("topwall") = topwall[];
+    Physical Surface("ground")  = ground[];
+    
+    // These IDs correspond to the airfoil side surfaces created by the extrusion.
+    // If the extrusion topology changes, update them using Gmsh's Visibility tool.
+    // Physical Surface("airfoil")   = {1059, 1081};
+
+    Physical Surface("front")   = frontSurf[];
+    Physical Surface("back")    = backSurf[];
+
 
 
 ElseIf ((dim == 3) && (filled == False))
@@ -269,14 +323,68 @@ ElseIf ((dim == 3) && (filled == False))
 
     // ----- PHYSICAL GROUPS -----
 
+    // ----- Find external surfaces -----
+
+    tol = 1e-8 * chord;
+
+    // x = -front
+    inlet[] =
+        Surface In BoundingBox{
+            -front-tol, -far-tol, -tol,
+            -front+tol,  far+tol, span*layers+tol
+        };
+
+    // x = rear
+    outlet[] =
+        Surface In BoundingBox{
+            rear-tol, yTE-ground-tol, -tol,
+            rear+tol, far+tol, span*layers+tol
+        };
+
+    // y = far
+    topwall[] =
+        Surface In BoundingBox{
+            -front-tol, far-tol, -tol,
+            rear+tol,  far+tol, span*layers+tol
+        };
+
+    // y = yTE-ground
+    ground[] =
+        Surface In BoundingBox{
+            -front-tol, yTE-ground-tol, -tol,
+            rear+tol,  yTE-ground+tol, span*layers+tol
+        };
+
+    // z = 0
+    backSurf[] =
+        Surface In BoundingBox{
+            -front-tol, yTE-ground-tol, -tol,
+            rear+tol,  far+tol, tol
+        };
+
+    // z = span
+    frontSurf[] = //because extrusion is done along positive axis!
+        Surface In BoundingBox{
+            -front-tol, yTE-ground-tol, span*layers-tol,
+            rear+tol,  far+tol, span*layers+tol
+        };
+        
+    // ----- PHYSICAL GROUPS -----
+
     Physical Volume("fluid") = {1,2,3,4,5};
 
-    Physical Surface("inlet")   = {62};
-    Physical Surface("outlet")  = {54};
-    Physical Surface("walls")   = {58,50};
-    Physical Surface("airfoil") = {66};
-    Physical Surface("front")   = {67};
-    Physical Surface("back")    = {40};
+    Physical Surface("inlet")   = inlet[];
+    Physical Surface("outlet")  = outlet[];
+    Physical Surface("topwall") = topwall[];
+    Physical Surface("ground")  = ground[];
+
+    // These IDs correspond to the airfoil side surfaces created by the extrusion.
+    // If the extrusion topology changes, update them using Gmsh's Visibility tool.
+    Physical Surface("airfoil")   = {1059, 1081};
+
+    Physical Surface("front")   = frontSurf[];
+    Physical Surface("back")    = backSurf[];
+
 
 // ----------------------
 
@@ -296,7 +404,7 @@ ElseIf ((dim == 2) && (filled == True))
     Physical Curve("outlet")  = {24,57,-50,25};
     Physical Curve("topwall")   = {21};
     Physical Curve("ground")   = {23};
-    Physical Curve("airfoil") = {1,2};
+    // Physical Curve("airfoil") = {1,2};
 
 ElseIf ((dim == 2) && (filled == False))
 

@@ -51,8 +51,6 @@ growthR_LE = find_growth_rate(H=BL_LE, y1=first_layerH, N=NUMlayers)
 # Controls
 # -------------------------------------------------
 NRESAMPLE = 250
-LE_BUNCHING = 2.0  # Higher = significantly denser at the Leading Edge
-TE_BUNCHING = 1.0  # Higher = denser at the Trailing Edge
 GROWTH_EXP = 0.1   # 1.0 = linear BL thickness growth, < 1.0 = rapid initial growth
 
 def bunching_array(n, power_start, power_end):
@@ -129,7 +127,7 @@ def ArcLens(coords): #returns array of cumulative lengths
 
 
 # -------------------------------------------------
-# 1. Read Data & Spline
+# Read Data & Spline
 # -------------------------------------------------
 raw = np.loadtxt(name)
 if np.allclose(raw[0], raw[-1]):
@@ -143,7 +141,7 @@ u_new = u_raw
 x_new, y_new = splev(u_new, tck)
 
 # -------------------------------------------------
-# 3. Strictly Enforce (1.0, 0.0) at Trailing Edges
+# Strictly Enforce (1.0, 0.0) at Trailing Edges
 # -------------------------------------------------
 x_new[0], y_new[0] = 1.0, 0.0
 x_new[-1], y_new[-1] = 1.0, 0.0
@@ -260,10 +258,35 @@ else: # i.e. if clockwise, TE-LE-TE
     x_off = np.concatenate((x_off_bot, x_off_nose, x_off_top))
     y_off = np.concatenate((y_off_bot, y_off_nose, y_off_top))
 
-tck_off, u_off = splprep([x_off, y_off], s=0.0, k=3, per=False)
-u_dense = np.linspace(0.0, 1.0, NRESAMPLE)
-x_off, y_off = splev(u_dense, tck_off)
-x_new, y_new = splev(u_dense, tck)
+tck_off, _ = splprep([x_off, y_off], s=0.0, k=3, per=False)
+u_off = np.linspace(0.0, 1.0, NRESAMPLE)
+x_off, y_off = splev(u_off, tck_off)
+
+
+# -------------------------------------------------
+# Resample with Aggressive LE Bunching
+# -------------------------------------------------
+u_dense = np.linspace(0.0, 1.0, 10000)
+x_dense, _ = splev(u_dense, tck)
+u_le = float(u_dense[np.argmin(x_dense)])
+
+LE_BUNCHING = 2.0  # Higher = significantly denser at the Leading Edge
+TE_BUNCHING = 1.0  # Higher = denser at the Trailing Edge
+
+n_up = NRESAMPLE // 2
+n_low = NRESAMPLE - n_up
+
+# Upper Surface: TE (u=0) to LE (u=u_le)
+u_up_frac = bunching_array(n_up, TE_BUNCHING, LE_BUNCHING)
+u_up = u_up_frac * u_le
+
+# Lower Surface: LE (u=u_le) to TE (u=1)
+u_low_frac = bunching_array(n_low, LE_BUNCHING, TE_BUNCHING)
+u_low = u_le + u_low_frac * (1.0 - u_le)
+
+# Combine (avoiding duplicating the LE point)
+u_new = np.concatenate([u_up[:-1], u_low])
+x_new, y_new = splev(u_new, tck)
 
 n = len(x_new)
 
@@ -309,8 +332,8 @@ with open(f"{SCRIPT_DIR}/scriptsEEW/Airfoil_points.geo", "w") as f:
     # Export dynamic point counts so Transfinite Meshing matches exactly
     # f.write(f"\nN_UP = {int(NRESAMPLE*arc_off[split_off])};\n")
     # f.write(f"N_LOW = {int(NRESAMPLE*(1-arc_off[split_off]))};\n")
-    f.write(f"\nN_UP = {int(NRESAMPLE//2)};\n")
-    f.write(f"N_LOW = {int(NRESAMPLE//2)};\n")
+    f.write(f"\nN_UP = {int(n_up)};\n")
+    f.write(f"N_LOW = {int(n_low)};\n")
 
     f.write(f"\nLEpoint = {split_air + 1};\n")
     f.write(f"LEoff = {n + split_off + 1};\n")
@@ -326,7 +349,7 @@ with open(f"{SCRIPT_DIR}/scriptsEEW/Airfoil_points.geo", "w") as f:
     f.write(f"NUMlayers = {NUMlayers};\n")
 
 # -------------------------------------------------
-# 7. Diagnostic Plotting (Global Frame Rendering)
+# Diagnostic Plotting (Global Frame Rendering)
 # -------------------------------------------------
 if PLOT:
     # 2D Rotation Matrix to match Gmsh's Rotate {{0,0,1}, {0,0,0}, -AoA_rad}

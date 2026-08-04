@@ -156,3 +156,12 @@ A typical run generates:
 - Boundary-layer offset curves
 - C-grid farfield topology
 - Gmsh mesh suitable for CFD simulations
+
+---
+
+## NOTES
+
+- **Current status:** The mesher is currently tuned for the **Eppler 61** airfoil. General support for arbitrary airfoils is planned but still under development.
+- The airfoil points in the `.dat` file should form a closed curve
+- `figlet` is only used for terminal artwork and does not affect mesh generation. It can be removed from the shell scripts if running in a minimal environment.
+- Make sure to check `Physical Groups` when making any changes in `MasterAirfoilEEW.geo`
