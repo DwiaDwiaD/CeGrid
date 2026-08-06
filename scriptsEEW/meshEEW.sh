@@ -16,6 +16,8 @@ LAYERS=$7
 FILLED=$8
 DIM=$9
 QUADS=${10}
+WING_LAYERS=${11}
+WINGSPAN=${12}
 
 echo
 echo "Airfoil: $name"
@@ -36,8 +38,10 @@ gmsh "$SCRIPT_DIR/scriptsEEW/MasterAirfoilEEW.geo" -3 \
     -setnumber chord "$CHORD" \
     -setnumber AoA "$AOA_DEG" \
     -setnumber span "$SPAN" \
+    -setnumber wingspan "$WINGSPAN" \
     -setnumber firstlayer "$FIRST_LAYER" \
     -setnumber layers "$LAYERS" \
+    -setnumber wing_layers "$WING_LAYERS" \
     -setnumber filled "$FILLED" \
     -setnumber dim "$DIM" \
     -setnumber quads "$QUADS" \

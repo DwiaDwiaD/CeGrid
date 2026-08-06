@@ -55,8 +55,10 @@ Example:
 | `-f, --filename` | Airfoil points filename (without extension) | **Required** |
 | `-c, --chord` | Airfoil chord length | `1.0` |
 | `-a, --aoa` | Angle of attack (degrees) | `10` |
-| `-s, --span` | Spanwise extrusion length (3D only) | `0.01` |
-| `-l, --extrude-layers` | Number of spanwise extrusion layers | `1` |
+| `-s, --span` | Total spanwise extrusion length (3D only) | `0.01` |
+| `-ws, --wingspan` | Spanwise extrusion length of wing (3D only) | `0.01` |
+| `-l, --extrude-layers` | Total number of spanwise extrusion layers | `1` |
+| `-wl, --wing-layers` | Number of spanwise extrusion layers on the wing| `1` |
 | `-y, --first-layer` | First boundary-layer cell height | `1e-3` |
 | `-t, --bl-thickness` | Total boundary-layer thickness | `0.1` |
 | `-n, --num-bl-layers` | Number of boundary-layer layers | `100` |
@@ -162,6 +164,7 @@ A typical run generates:
 ## NOTES
 
 - **Current status:** The mesher is currently tuned for the **Eppler 61** airfoil. General support for arbitrary airfoils is planned but still under development.
+- Current capabilities include 2D airfoil(filled/unfilled), 3D simple extrude(filled/unfilled), 3D rectangular finite wing
 - The airfoil points in the `.dat` file should form a closed curve
 - `figlet` is only used for terminal artwork and does not affect mesh generation. It can be removed from the shell scripts if running in a minimal environment.
 - Make sure to check `Physical Groups` when making any changes in `MasterAirfoilEEW.geo`

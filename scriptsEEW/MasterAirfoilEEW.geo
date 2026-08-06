@@ -18,6 +18,7 @@ Mesh.Optimize = 1;
 Mesh.OptimizeNetgen = 1;
 // ---------------------------
 
+// NOTE: these values don't matter if defined already in meshEEW.sh. These are merely meant as a failsafe
 // ----- Parameters -----
 True = 1;
 False = 0;
@@ -29,7 +30,11 @@ If (!Exists(chord))
 EndIf
 
 If (!Exists(span))
-    span = 0.01;
+    span = 5;
+EndIf
+
+If (!Exists(wingspan))
+    wingspan = 5;
 EndIf
 
 If (!Exists(far))
@@ -41,7 +46,11 @@ If (!Exists(firstlayer))
 EndIf
 
 If (!Exists(layers))
-    layers = 1; //default layers=1, pseudo 2D
+    layers = 300; //default layers=300
+EndIf
+
+If (!Exists(wing_layers))
+    wing_layers = 200; //default layers=200
 EndIf
 
 If (!Exists(front))
@@ -227,17 +236,47 @@ If ((dim == 3) && (filled == True))
 
     // ----- EXTRUDE -----
 
-    Extrude {0,0,span*layers}
-    {
-        Surface{30};
-        Surface{40};
-        Surface{41};
-        Surface{42};
-        Surface{43};
-        Surface{99};
-        Layers{layers};
-        Recombine;
-    }
+    If (wingspan == span)
+        
+        Extrude {0,0,span*chord}
+        {
+            Surface{30};
+            Surface{40};
+            Surface{41};
+            Surface{42};
+            Surface{43};
+            Surface{99};
+            Layers{layers};
+            Recombine;
+        }
+
+    Else 
+    
+        Extrude {0,0,-(span-wingspan)*chord} //NOTE: span > wingspan always
+        {
+            Surface{30};
+            Surface{40};
+            Surface{41};
+            Surface{42};
+            Surface{43};
+            Surface{99};
+            Layers{layers-wing_layers};
+            Recombine;
+        }
+   
+        Extrude {0,0,wingspan*chord}
+        {
+            Surface{30};
+            Surface{40};
+            Surface{41};
+            Surface{42};
+            Surface{43};
+            //Surface{99};
+            Layers{wing_layers};
+            Recombine;
+        }
+        
+    EndIf
 
     // ----- PHYSICAL GROUPS -----
 
@@ -248,43 +287,43 @@ If ((dim == 3) && (filled == True))
     // x = -front
     inlet[] =
         Surface In BoundingBox{
-            -front-tol, -far-tol, -tol,
-            -front+tol,  far+tol, span*layers+tol
+            -front-tol, -far-tol, -(span-wingspan)-tol,
+            -front+tol,  far+tol, wingspan+tol
         };
 
     // x = rear
     outlet[] =
         Surface In BoundingBox{
-            rear-tol, yTE-ground-tol, -tol,
-            rear+tol, far+tol, span*layers+tol
+            rear-tol, yTE-ground-tol, -(span-wingspan)-tol,
+            rear+tol, far+tol, wingspan+tol
         };
 
     // y = far
     topwall[] =
         Surface In BoundingBox{
-            -front-tol, far-tol, -tol,
-            rear+tol,  far+tol, span*layers+tol
+            -front-tol, far-tol, -(span-wingspan)-tol,
+            rear+tol,  far+tol, wingspan+tol
         };
 
     // y = yTE-ground
     ground[] =
         Surface In BoundingBox{
-            -front-tol, yTE-ground-tol, -tol,
-            rear+tol,  yTE-ground+tol, span*layers+tol
+            -front-tol, yTE-ground-tol, -(span-wingspan)-tol,
+            rear+tol,  yTE-ground+tol, wingspan+tol
         };
 
     // z = 0
     backSurf[] =
         Surface In BoundingBox{
-            -front-tol, yTE-ground-tol, -tol,
-            rear+tol,  far+tol, tol
+            -front-tol, yTE-ground-tol, -(span-wingspan)-tol,
+            rear+tol,  far+tol, -(span-wingspan)+tol
         };
 
     // z = span
     frontSurf[] = //because extrusion is done along positive axis!
         Surface In BoundingBox{
-            -front-tol, yTE-ground-tol, span*layers-tol,
-            rear+tol,  far+tol, span*layers+tol
+            -front-tol, yTE-ground-tol, wingspan-tol,
+            rear+tol,  far+tol, wingspan+tol
         };
         
     // ----- PHYSICAL GROUPS -----
@@ -309,17 +348,47 @@ ElseIf ((dim == 3) && (filled == False))
 
     // ----- EXTRUDE -----
 
-    Extrude {0,0,span*layers}
-    {
-        Surface{30};
-        Surface{40};
-        Surface{41};
-        Surface{42};
-        Surface{43};
-        //Surface{99};
-        Layers{layers};
-        Recombine;
-    }
+    If (wingspan == span)
+        
+        Extrude {0,0,-span*chord}
+        {
+            Surface{30};
+            Surface{40};
+            Surface{41};
+            Surface{42};
+            Surface{43};
+            //Surface{99};
+            Layers{layers};
+            Recombine;
+        }
+
+    Else 
+    
+        Extrude {0,0,(span-wingspan)*chord}
+        {
+            Surface{30};
+            Surface{40};
+            Surface{41};
+            Surface{42};
+            Surface{43};
+            Surface{99};
+            Layers{layers-wing_layers};
+            Recombine;
+        }
+   
+        Extrude {0,0,-wingspan*chord}
+        {
+            Surface{30};
+            Surface{40};
+            Surface{41};
+            Surface{42};
+            Surface{43};
+            //Surface{99};
+            Layers{wing_layers};
+            Recombine;
+        }
+        
+    EndIf
 
     // ----- PHYSICAL GROUPS -----
 
@@ -330,43 +399,43 @@ ElseIf ((dim == 3) && (filled == False))
     // x = -front
     inlet[] =
         Surface In BoundingBox{
-            -front-tol, -far-tol, -tol,
-            -front+tol,  far+tol, span*layers+tol
+            -front-tol, -far-tol, -wingspan-tol,
+            -front+tol,  far+tol, (span-wingspan)+tol
         };
 
     // x = rear
     outlet[] =
         Surface In BoundingBox{
-            rear-tol, yTE-ground-tol, -tol,
-            rear+tol, far+tol, span*layers+tol
+            rear-tol, yTE-ground-tol, -wingspan-tol,
+            rear+tol, far+tol, (span-wingspan)+tol
         };
 
     // y = far
     topwall[] =
         Surface In BoundingBox{
-            -front-tol, far-tol, -tol,
-            rear+tol,  far+tol, span*layers+tol
+            -front-tol, far-tol, -wingspan-tol,
+            rear+tol,  far+tol, (span-wingspan)+tol
         };
 
     // y = yTE-ground
     ground[] =
         Surface In BoundingBox{
-            -front-tol, yTE-ground-tol, -tol,
-            rear+tol,  yTE-ground+tol, span*layers+tol
+            -front-tol, yTE-ground-tol, -wingspan-tol,
+            rear+tol,  yTE-ground+tol, (span-wingspan)+tol
         };
 
     // z = 0
     backSurf[] =
         Surface In BoundingBox{
-            -front-tol, yTE-ground-tol, -tol,
-            rear+tol,  far+tol, tol
+            -front-tol, yTE-ground-tol, -wingspan-tol,
+            rear+tol,  far+tol, -wingspan+tol
         };
 
     // z = span
     frontSurf[] = //because extrusion is done along positive axis!
         Surface In BoundingBox{
-            -front-tol, yTE-ground-tol, span*layers-tol,
-            rear+tol,  far+tol, span*layers+tol
+            -front-tol, yTE-ground-tol, (span-wingspan)-tol,
+            rear+tol,  far+tol, (span-wingspan)+tol
         };
         
     // ----- PHYSICAL GROUPS -----

@@ -32,8 +32,10 @@ echo "NOTE: Script(${SCRIPT_NAME}) is located in: $SCRIPT_DIR"
 name=""
 CHORD=1.0
 AOA_DEG=10
-SPAN=0.01
-EXTRUDE_LAYERS=1
+SPAN=5
+WINGSPAN=$SPAN
+EXTRUDE_LAYERS=100
+WING_LAYERS=$EXTRUDE_LAYERS #same as extrude_layers by default
 FIRST_LAYER=1e-3
 NUM_LAYERS=100
 BLAirfoilUp=0.1
@@ -43,6 +45,8 @@ PLOT=0
 QUADS=0
 DIM=2
 HELP=false
+WINGSPAN_SET=false
+WINGLAYERS_SET=false
 
 # -------- PARSE FLAGS --------
 while [[ $# -gt 0 ]]; do
@@ -55,8 +59,12 @@ while [[ $# -gt 0 ]]; do
       AOA_DEG="$2"; shift 2 ;;
     -s|--span)
       SPAN="$2"; shift 2 ;;
+    -ws|--wingspan)
+      WINGSPAN="$2"; WINGSPAN_SET=true; shift 2 ;;
     -l|--extrude-layers)
       EXTRUDE_LAYERS="$2"; shift 2 ;;
+    -wl|--wing-layers)
+      WING_LAYERS="$2"; WINGLAYERS_SET=true; shift 2 ;;
     -y|--first-layer)
       FIRST_LAYER="$2"; shift 2 ;;
     -t|--bl-thickness)
@@ -81,7 +89,15 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-USAGE="USAGE: ./${SCRIPT_NAME} -f <airfoil_name> [-c chord] [-a AoA_deg] [-s span] [-l extrude_layers] [-y first_layer_height_BL] [-t max_BL_thickness] [-n BL_layers] [-g ground_height] [-d meshingDim(2D/3D)] [-x filled/unfilled] [-p plot/no-plot] [-q quads/triangles(BL only)] [-h help]"
+if ! $WINGSPAN_SET; then
+    WINGSPAN=$SPAN
+fi
+
+if ! $WINGLAYERS_SET; then
+    WING_LAYERS=$EXTRUDE_LAYERS
+fi
+
+USAGE="USAGE: ./${SCRIPT_NAME} -f <airfoil_name> [-c chord] [-a AoA_deg] [-s span] [-ws wingspan] [-l extrude_layers] [-wl wing_layers] [-y first_layer_height_BL] [-t max_BL_thickness] [-n BL_layers] [-g ground_height] [-d meshingDim(2D/3D)] [-x filled/unfilled] [-p plot/no-plot] [-q quads/triangles(BL only)] [-h help]"
 
 help=$(cat <<EOF
 
@@ -102,12 +118,23 @@ Geometry:
         Default: 0.0
 
   -s, --span <m>
-        Spanwise extrusion length in metres (3D only).
-        Default: 1.0
+        Total spanwise extrusion length in chords(wing+domain) (3D only).
+        Default:5.0
+
+  -ws, --wingspan <m>
+        Spanwise extrusion length in chords(wing) (3D only).
+        Only necessary for finite wing meshes!
+        Default: same as --span
 
 Meshing:
   -l, --extrude-layers <count>
-        Number of cells/layers through the span direction.
+        Total Number of cells/layers through the span direction.
+        (Integer)
+  
+  -wl, --wing-layers <count>
+        Number of cells/layers through the span direction along the wing.
+        Only necessary for finite wing meshes!
+        Default: same as --extrude-layers
         (Integer)
 
   -y, --first-layer <chords>
@@ -137,6 +164,7 @@ Options:
   -x, --filled
         Generate a filled airfoil mesh.
         (Without -x the airfoil remains hollow.)
+        (Can also be used to flip orientation of finite wing meshes.)
   
   -p, --plot
         Plot the generated BL boundary curve and airfoil
@@ -181,13 +209,41 @@ if [ -z "$name" ]; then
     exit 1
 fi
 
+# wingspan cannot exceed span
+if awk "BEGIN {exit !($WINGSPAN > $SPAN)}"; then
+    echo "Error: wingspan ($WINGSPAN) cannot exceed span ($SPAN)." >&2
+    exit 1
+fi
+
+# wing layers cannot exceed total layers
+if (( WING_LAYERS > EXTRUDE_LAYERS )); then
+    echo "Error: wing_layers ($WING_LAYERS) cannot exceed extrude_layers ($EXTRUDE_LAYERS)." >&2
+    exit 1
+fi
+
+# If the wing is finite, it must use fewer layers
+if awk "BEGIN {exit !($WINGSPAN < $SPAN)}"; then
+    if (( WING_LAYERS >= EXTRUDE_LAYERS )); then
+        echo "Error: finite wings require wing_layers < extrude_layers." >&2
+        exit 1
+    fi
+
+# If the wing spans the whole domain, the layer counts must match
+else
+    if (( WING_LAYERS != EXTRUDE_LAYERS )); then
+        echo "Error: full-span wings require wing_layers == extrude_layers." >&2
+        exit 1
+    fi
+fi
 
 echo
 echo "Airfoil: $name"
 echo "Chord: $CHORD"
 echo "AoA: $AOA_DEG"
 echo "Span: $SPAN"
+echo "WingSpan: $WINGSPAN"
 echo "Extrude_Layers: $EXTRUDE_LAYERS"
+echo "WING_Layers: $WING_LAYERS"
 echo "FirstLayerHeight : $FIRST_LAYER"
 echo "AirfoilBLthickness : $BLAirfoilUp"
 echo "NumOfBLlayers : $NUM_LAYERS"
@@ -202,7 +258,7 @@ echo "Converting $name dat file"
 python3 "$SCRIPT_DIR/scriptsEEW/dat_to_geo.py" "${name}.dat" "$SCRIPT_DIR" "$BLAirfoilUp" "$GROUND" "$AOA_DEG" "$FIRST_LAYER" "$NUM_LAYERS" "$PLOT"
 
 echo "Generating mesh..."
-"$SCRIPT_DIR/scriptsEEW/meshEEW.sh" "$name" "$CHORD" "$AOA_DEG" "$SPAN" "$SCRIPT_DIR" "$FIRST_LAYER" "$EXTRUDE_LAYERS" "$FILLED" "$DIM" "$QUADS"
+"$SCRIPT_DIR/scriptsEEW/meshEEW.sh" "$name" "$CHORD" "$AOA_DEG" "$SPAN" "$SCRIPT_DIR" "$FIRST_LAYER" "$EXTRUDE_LAYERS" "$FILLED" "$DIM" "$QUADS" "$WING_LAYERS" "$WINGSPAN"
 
 echo "Meshing Done..."
 
