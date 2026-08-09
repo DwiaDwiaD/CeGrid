@@ -342,7 +342,7 @@ with open(f"{SCRIPT_DIR}/scriptsEEW/Airfoil_points.geo", "w") as f:
 
     # Export dynamic point counts so Transfinite Meshing matches exactly
     f.write(f"\nN_UP = {int(NRESAMPLE*arc_off[split_off])};\n")
-    f.write(f"N_LOW = {int(NRESAMPLE*(1-arc_off[split_off]))};\n")
+    f.write(f"N_LOW = {NRESAMPLE - int(NRESAMPLE*(arc_off[split_off]))};\n")
     # f.write(f"\nN_UP = {int(n_up)};\n")
     # f.write(f"N_LOW = {int(n_low)};\n")
 
