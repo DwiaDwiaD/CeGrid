@@ -22,9 +22,11 @@ Mesh.OptimizeNetgen = 1;
 // ----- Parameters -----
 True = 1;
 False = 0;
+
 If (!Exists(AoA))
     AoA = 10;
 EndIf
+
 If (!Exists(chord))
     chord = 1.0;
 EndIf
@@ -58,7 +60,7 @@ If (!Exists(front))
 EndIf
 
 If (!Exists(rear))
-    rear = 2*far;
+    rear = 3*far;
 EndIf
 
 If (!Exists(dim))
@@ -71,6 +73,22 @@ EndIf
 
 If (!Exists(quads))
     quads = False; // 0(False) or 1(True)
+EndIf
+
+If (!Exists(groundres))
+    groundres = 200;
+EndIf
+
+If (!Exists(wakeres))
+    wakeres = 300;
+EndIf
+
+If (!Exists(inletres))
+    inletres = 40;
+EndIf
+
+If (!Exists(outletres))
+    outletres = 20;
 EndIf
 
 // ----------------------
@@ -120,8 +138,9 @@ OutMid = 30007;
 
 tUp = BLAirfoilUp * chord;
 tLow = BLAirfoilLow * chord;
-xTE = chord*Cos(AoA_rad);
-yTE = -chord*Sin(AoA_rad);
+// Origin shifted to TE(look at dat_to_geo for more info)!!
+xTE = 0;
+yTE = 0;
 
 Point(OutUpper) = {rear,yTE + tUp*Cos(AoA_rad),0};
 Point(OutLower) = {rear,yTE - tLow*Cos(AoA_rad),0};
@@ -165,8 +184,9 @@ Line(24) = {20004,OutLower};
 //Lines from the structured part
 Line(25) = {OutUpper,20001};
 
-Transfinite Curve{23} = 200;
-Transfinite Curve{22,25} = 50;
+Transfinite Curve{23} = groundres;
+Transfinite Curve{22} = inletres;
+Transfinite Curve{25} = outletres; // NOTE: this is only for part of the outlet
 
 
 //ground
@@ -195,10 +215,10 @@ Plane Surface(99) = {999}; //airfoil surface
 
 
 Transfinite Curve{-1} = N_UP Using Bump 0.25;
-Transfinite Curve{-3} = N_UP Using Progression 0.99;
+Transfinite Curve{-3} = N_UP Using Progression 0.98;
 Transfinite Curve{2} = N_LOW Using Bump 0.25;
-Transfinite Curve{4} = N_LOW Using Progression 0.99;
-Transfinite Curve{51,56,61} = 300;
+Transfinite Curve{4} = N_LOW Using Progression 0.97;
+Transfinite Curve{51,56,61} = wakeres;
 Transfinite Curve{63,-57} = NUMlayers Using Progression grTElow;
 Transfinite Curve{62,-50} = NUMlayers Using Progression grTEup;
 Transfinite Curve{60} = NUMlayers Using Progression 2-grLE;

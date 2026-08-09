@@ -6,6 +6,10 @@ from scipy.interpolate import splprep, splev
 
 # WORKS ONLY FOR EPPLER61 RIGHT NOW!!!!!
 
+# -------------------------------------------------
+# Controls
+# -------------------------------------------------
+
 if len(sys.argv) < 5:
     print("Usage (Uniform):  python3 dat_to_geo.py {filename} {pathToWD} {BL_UNIFORM}")
     print("Usage (Variable): python3 dat_to_geo.py {filename} {pathToWD} {BL_TE_UPPER} {BL_TE_LOWER}")
@@ -17,17 +21,21 @@ SCRIPT_DIR = sys.argv[2]
 # Flexible arguments to support both uniform and variable thickness
 BL_TE_UPPER = float(sys.argv[3])
 GROUND = float(sys.argv[4])
-GNDClr = 0.1*GROUND
+GNDClr = 0.01
 AOA_DEG = float(sys.argv[5])
 first_layerH = float(sys.argv[6])
 NUMlayers = float(sys.argv[7])
 PLOT = float(sys.argv[8])
+NRESAMPLE = int(sys.argv[9])
+
+GROWTH_EXP = 0.1   # 1.0 = linear BL thickness growth, < 1.0 = rapid initial growth
+te_point = (1.0, 0.0) # assumed trailing edge is the default (1.0,0.0) in the airfoil coordinates!
 
 BL_TE_LOWER = min(GROUND-GNDClr,BL_TE_UPPER) 
 BL_LE = min(BL_TE_LOWER + 0.9 * np.sin(np.radians(AOA_DEG)), BL_TE_UPPER)
 
 # -------------------------------------------------
-# Growth Rate
+# Functions
 # -------------------------------------------------
 from scipy.optimize import brentq
 
@@ -41,17 +49,6 @@ def find_growth_rate(H, y1, N):
     # Growth rate is usually between 1.01 and 1.5
     return brentq(objective, 0.95, 2.0)
 
-# Example usage:
-# H = BL_TE_UPPER (total thickness), y1 = first_layerH (first layer), N = 100 (layers)
-growthR_TEup = find_growth_rate(H=BL_TE_UPPER, y1=first_layerH, N=NUMlayers)
-growthR_TElow = find_growth_rate(H=BL_TE_LOWER, y1=first_layerH, N=NUMlayers)
-growthR_LE = find_growth_rate(H=BL_LE, y1=first_layerH, N=NUMlayers)
-
-# -------------------------------------------------
-# Controls
-# -------------------------------------------------
-NRESAMPLE = 250
-GROWTH_EXP = 0.1   # 1.0 = linear BL thickness growth, < 1.0 = rapid initial growth
 
 def bunching_array(n, power_start, power_end):
     """
@@ -124,6 +121,15 @@ def ArcLens(coords): #returns array of cumulative lengths
     arclength /= np.max(arclength)
     return arclength
 
+# -------------------------------------------------
+# Growth Rate
+# -------------------------------------------------
+
+# Example usage:
+# H = BL_TE_UPPER (total thickness), y1 = first_layerH (first layer), N = 100 (layers)
+growthR_TEup = find_growth_rate(H=BL_TE_UPPER, y1=first_layerH, N=NUMlayers)
+growthR_TElow = find_growth_rate(H=BL_TE_LOWER, y1=first_layerH, N=NUMlayers)
+growthR_LE = find_growth_rate(H=BL_LE, y1=first_layerH, N=NUMlayers)
 
 
 # -------------------------------------------------
@@ -143,8 +149,8 @@ x_new, y_new = splev(u_new, tck)
 # -------------------------------------------------
 # Strictly Enforce (1.0, 0.0) at Trailing Edges
 # -------------------------------------------------
-x_new[0], y_new[0] = 1.0, 0.0
-x_new[-1], y_new[-1] = 1.0, 0.0
+x_new[0], y_new[0] = te_point[0], te_point[1]
+x_new[-1], y_new[-1] = te_point[0], te_point[1]
 
 u_thick_hi = float(u_new[np.argmax(y_new)])
 u_thick_lo = float(u_new[np.argmin(y_new)])
@@ -299,13 +305,18 @@ arc_off = ArcLens((x_off, y_off))
 
 # Note: Gmsh uses a negative angle in the script, which rotates clockwise.
 # Rotate Airfoil Points to Global Frame
-translate = (0,0)
-x_glob, y_glob = Translate(translate, Rotate(-AOA_DEG, (x_new,y_new)))
+translate = (-te_point[0],-te_point[1])
+x_new, y_new = Translate(translate,(x_new,y_new))
+# REENFORCING TE
+x_new[0],y_new[0] = (0,0)
+
+x_off, y_off = Translate(translate,(x_off,y_off))
+x_glob, y_glob = Rotate(-AOA_DEG, (x_new,y_new))
 
 # Rotate Boundary Layer Edge Points to Global Frame
-x_off_glob, y_off_glob = Translate(translate, Rotate(-AOA_DEG, (x_off,y_off)))
-split_air = np.argmin(np.abs(x_glob))
-split_off = np.argmin(np.abs(y_off_glob))
+x_off_glob, y_off_glob = Rotate(-AOA_DEG, (x_off,y_off))
+split_air = n_up
+split_off = np.argmin(np.abs(y_off_glob - np.sin(np.radians(AOA_DEG))))
 
 # Airfoil
 airfoil_up_ids = list(range(1, split_air + 2))
@@ -330,10 +341,10 @@ with open(f"{SCRIPT_DIR}/scriptsEEW/Airfoil_points.geo", "w") as f:
     f.write(f"BSpline(4) = {{{','.join(map(str, off_low_ids))}}}; // Offset Lower\n")
 
     # Export dynamic point counts so Transfinite Meshing matches exactly
-    # f.write(f"\nN_UP = {int(NRESAMPLE*arc_off[split_off])};\n")
-    # f.write(f"N_LOW = {int(NRESAMPLE*(1-arc_off[split_off]))};\n")
-    f.write(f"\nN_UP = {int(n_up)};\n")
-    f.write(f"N_LOW = {int(n_low)};\n")
+    f.write(f"\nN_UP = {int(NRESAMPLE*arc_off[split_off])};\n")
+    f.write(f"N_LOW = {int(NRESAMPLE*(1-arc_off[split_off]))};\n")
+    # f.write(f"\nN_UP = {int(n_up)};\n")
+    # f.write(f"N_LOW = {int(n_low)};\n")
 
     f.write(f"\nLEpoint = {split_air + 1};\n")
     f.write(f"LEoff = {n + split_off + 1};\n")
@@ -366,7 +377,7 @@ if PLOT:
 
     # --- DRAW THE GROUND LINE (Dead simple in Global Frame) ---
     x_span = np.linspace(np.min(x_off_glob) - 0.2, np.max(x_off_glob) + 0.5, 100)
-    y_ground = np.full_like(x_span, -GROUND-np.sin(aoa_rad))  # Horizontal flat line
+    y_ground = np.full_like(x_span, -GROUND)  # Horizontal flat line
 
     plt.plot(x_span, y_ground, color='brown', linestyle='--', linewidth=2.0, label=f'Ground Plane (y = {-GROUND})')
     # -----------------------------------------------------------

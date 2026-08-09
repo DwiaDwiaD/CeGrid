@@ -18,6 +18,10 @@ DIM=$9
 QUADS=${10}
 WING_LAYERS=${11}
 WINGSPAN=${12}
+GROUND_RES=${13}
+WAKE_RES=${14}
+INLET_RES=${15}
+OUTLET_RES=${16}
 
 echo
 echo "Airfoil: $name"
@@ -45,6 +49,10 @@ gmsh "$SCRIPT_DIR/scriptsEEW/MasterAirfoilEEW.geo" -3 \
     -setnumber filled "$FILLED" \
     -setnumber dim "$DIM" \
     -setnumber quads "$QUADS" \
+    -setnumber groundres "$GROUND_RES" \
+    -setnumber wakeres "$WAKE_RES" \
+    -setnumber inletres "$INLET_RES" \
+    -setnumber outletres "$OUTLET_RES" \
     -format msh2 \
     -nt 0 \
     -o "meshesEEW/${name}.msh"

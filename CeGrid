@@ -34,11 +34,16 @@ CHORD=1.0
 AOA_DEG=10
 SPAN=5
 WINGSPAN=$SPAN
-EXTRUDE_LAYERS=100
+EXTRUDE_LAYERS=5
 WING_LAYERS=$EXTRUDE_LAYERS #same as extrude_layers by default
 FIRST_LAYER=1e-3
 NUM_LAYERS=100
 BLAirfoilUp=0.1
+AIRFOIL_RES=250
+GROUND_RES=200
+WAKE_RES=300
+INLET_RES=40
+OUTLET_RES=20
 GROUND=1
 FILLED=0
 PLOT=0
@@ -69,6 +74,16 @@ while [[ $# -gt 0 ]]; do
       FIRST_LAYER="$2"; shift 2 ;;
     -t|--bl-thickness)
       BLAirfoilUp="$2"; shift 2 ;;
+    -ar|--airfoil_resolution)
+      AIRFOIL_RES="$2"; shift 2 ;;
+    -gr|--ground_resolution)
+      GROUND_RES="$2"; shift 2 ;;
+    -wr|--wake_resolution)
+      WAKE_RES="$2"; shift 2 ;;
+    -ir|--inlet_resolution)
+      INLET_RES="$2"; shift 2 ;;
+    -or|--outlet_resolution)
+      OUTLET_RES="$2"; shift 2 ;;
     -n|--num-bl-layers)
       NUM_LAYERS="$2"; shift 2 ;;
     -g|--ground)
@@ -97,7 +112,7 @@ if ! $WINGLAYERS_SET; then
     WING_LAYERS=$EXTRUDE_LAYERS
 fi
 
-USAGE="USAGE: ./${SCRIPT_NAME} -f <airfoil_name> [-c chord] [-a AoA_deg] [-s span] [-ws wingspan] [-l extrude_layers] [-wl wing_layers] [-y first_layer_height_BL] [-t max_BL_thickness] [-n BL_layers] [-g ground_height] [-d meshingDim(2D/3D)] [-x filled/unfilled] [-p plot/no-plot] [-q quads/triangles(BL only)] [-h help]"
+USAGE="USAGE: ./${SCRIPT_NAME} -f <airfoil_name> [-c chord] [-a AoA_deg] [-s span] [-ws wingspan] [-l extrude_layers] [-wl wing_layers] [-y first_layer_height_BL] [-t max_BL_thickness] [-ar airfoil_resolution] [-gr ground_resolution] [-wr wake_resolution] [-ir inlet_resolution] [-or outlet_resolution] [-n BL_layers] [-g ground_height] [-d meshingDim(2D/3D)] [-x filled/unfilled] [-p plot/no-plot] [-q quads/triangles(BL only)] [-h help]"
 
 help=$(cat <<EOF
 
@@ -144,6 +159,27 @@ Meshing:
   -t, --bl-thickness <chords>
         Total boundary layer thickness,
         expressed as a fraction of the chord.
+  
+  -ar, --airfoil_resolution <chords>
+        Number of elements on airfoil.
+        (Integer)
+  
+  -gr, --ground_resolution <chords>
+        Number of elements on ground.
+        (Integer)
+  
+  -wr, --wake_resolution <chords>
+        Number of elements on wake block.
+        (Integer)
+  
+  -ir, --inlet_resolution <chords>
+        Number of elements on inlet.
+        (Integer)
+  
+  -or, --outlet_resolution <chords>
+        Number of elements on (remaining) outlet.
+        (Integer)
+  
 
   -n, --num-bl-layers <count>
         Number of boundary layer layers.
@@ -255,10 +291,10 @@ echo
 
 
 echo "Converting $name dat file"
-python3 "$SCRIPT_DIR/scriptsEEW/dat_to_geo.py" "${name}.dat" "$SCRIPT_DIR" "$BLAirfoilUp" "$GROUND" "$AOA_DEG" "$FIRST_LAYER" "$NUM_LAYERS" "$PLOT"
+python3 "$SCRIPT_DIR/scriptsEEW/dat_to_geo.py" "${name}.dat" "$SCRIPT_DIR" "$BLAirfoilUp" "$GROUND" "$AOA_DEG" "$FIRST_LAYER" "$NUM_LAYERS" "$PLOT" "$AIRFOIL_RES"
 
 echo "Generating mesh..."
-"$SCRIPT_DIR/scriptsEEW/meshEEW.sh" "$name" "$CHORD" "$AOA_DEG" "$SPAN" "$SCRIPT_DIR" "$FIRST_LAYER" "$EXTRUDE_LAYERS" "$FILLED" "$DIM" "$QUADS" "$WING_LAYERS" "$WINGSPAN"
+"$SCRIPT_DIR/scriptsEEW/meshEEW.sh" "$name" "$CHORD" "$AOA_DEG" "$SPAN" "$SCRIPT_DIR" "$FIRST_LAYER" "$EXTRUDE_LAYERS" "$FILLED" "$DIM" "$QUADS" "$WING_LAYERS" "$WINGSPAN" "$GROUND_RES" "$WAKE_RES" "$INLET_RES" "$OUTLET_RES"
 
 echo "Meshing Done..."
 

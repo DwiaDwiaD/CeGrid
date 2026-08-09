@@ -165,6 +165,8 @@ A typical run generates:
 
 - **Current status:** The mesher is currently tuned for the **Eppler 61** airfoil. General support for arbitrary airfoils is planned but still under development.
 - Current capabilities include 2D airfoil(filled/unfilled), 3D simple extrude(filled/unfilled), 3D rectangular finite wing
+- Shifted Origin (0,0) to Trailing Edge(TE)
+- Added resolution control for different surfaces
 - The airfoil points in the `.dat` file should form a closed curve
 - `figlet` is only used for terminal artwork and does not affect mesh generation. It can be removed from the shell scripts if running in a minimal environment.
 - Make sure to check `Physical Groups` when making any changes in `MasterAirfoilEEW.geo`
