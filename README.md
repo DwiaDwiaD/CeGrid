@@ -168,6 +168,7 @@ A typical run generates:
 - Shifted Origin (0,0) to Trailing Edge(TE)
 - Added resolution control for different surfaces
 - Added node matching between filled and unfilled meshes(2D only)
+- Added conversion & stacking codes for note keeping
 - The airfoil points in the `.dat` file should form a closed curve
 - `figlet` is only used for terminal artwork and does not affect mesh generation. It can be removed from the shell scripts if running in a minimal environment.
 - Make sure to check `Physical Groups` when making any changes in `MasterAirfoilEEW.geo`
