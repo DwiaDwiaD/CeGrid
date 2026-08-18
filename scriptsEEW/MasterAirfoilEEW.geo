@@ -493,7 +493,7 @@ ElseIf ((dim == 2) && (filled == True))
     Physical Curve("outlet")  = {24,57,-50,25};
     Physical Curve("topwall")   = {21};
     Physical Curve("ground")   = {23};
-    // Physical Curve("airfoil") = {1,2};
+    Physical Curve("airfoil") = {1,2};
 
 ElseIf ((dim == 2) && (filled == False))
 

@@ -50,6 +50,7 @@ PLOT=0
 QUADS=0
 DIM=2
 HELP=false
+IFBOTH=false
 WINGSPAN_SET=false
 WINGLAYERS_SET=false
 
@@ -98,6 +99,8 @@ while [[ $# -gt 0 ]]; do
       QUADS=1; shift ;;
     -h|--help)
       HELP=true; shift ;;
+    -b|--both)
+      IFBOTH=true; shift ;;
     *)
       echo "Unknown option: $1"
       exit 1 ;;
@@ -205,6 +208,11 @@ Options:
   -p, --plot
         Plot the generated BL boundary curve and airfoil
 
+  -b, --both
+        Generate both filled and unfilled airfoil meshes(2D only), that share the node numbering scheme.
+        (NOTE: Gmsh does NOT guarantee this automatically on separate runs, which is why this option is provided)
+        (This was developed to ease our stacking code)
+  
   -h, --help
         Display this help message and exit.
 
@@ -294,7 +302,7 @@ echo "Converting $name dat file"
 python3 "$SCRIPT_DIR/scriptsEEW/dat_to_geo.py" "${name}.dat" "$SCRIPT_DIR" "$BLAirfoilUp" "$GROUND" "$AOA_DEG" "$FIRST_LAYER" "$NUM_LAYERS" "$PLOT" "$AIRFOIL_RES"
 
 echo "Generating mesh..."
-"$SCRIPT_DIR/scriptsEEW/meshEEW.sh" "$name" "$CHORD" "$AOA_DEG" "$SPAN" "$SCRIPT_DIR" "$FIRST_LAYER" "$EXTRUDE_LAYERS" "$FILLED" "$DIM" "$QUADS" "$WING_LAYERS" "$WINGSPAN" "$GROUND_RES" "$WAKE_RES" "$INLET_RES" "$OUTLET_RES"
+"$SCRIPT_DIR/scriptsEEW/meshEEW.sh" "$name" "$CHORD" "$AOA_DEG" "$SPAN" "$SCRIPT_DIR" "$FIRST_LAYER" "$EXTRUDE_LAYERS" "$FILLED" "$DIM" "$QUADS" "$WING_LAYERS" "$WINGSPAN" "$GROUND_RES" "$WAKE_RES" "$INLET_RES" "$OUTLET_RES" "$IFBOTH"
 
 echo "Meshing Done..."
 
