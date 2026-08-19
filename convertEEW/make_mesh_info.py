@@ -3,8 +3,8 @@
 make_mesh_info.py
 ==================
 Generate mesh.info / mesh.data / mesh1.info / mesh1.data from a 2-D Gmsh mesh,
-for a VAYU run that supplies its own pre-built 3-D mesh via mien/mxyz/mrng
-(i.e. the flow-only path, where driver.F's `goto 1234` skips the internal
+for a VAYU run that supplies its own pre-built 3-D mesh via mien/mxyz/mrng(made by
+stackEEW.py)(i.e. the flow-only path, where driver.F's `goto 1234` skips the internal
 2D->3D stacking and jumps straight to hypoflow).
 
 WHY THESE FILES ARE NEEDED AT ALL (read from parseinput.F)
@@ -14,19 +14,6 @@ MPI-partition arrays:
 
     nn = numnp2d*(wing_sli-1) + numnp2dl*(nslices-wing_sli+1)
     ne = numel2d*(wing_sli-1) + numel2dl*(nslices-wing_sli)
-
-These nn/ne MUST equal the true node/element counts in your actual mxyz/mien
-(built by gmsh_to_vayu.py) or the partitioner will misallocate. This script
-solves that by setting:
-
-    wing_sli = 2, nslices = 2   (put these in fsi.in)
-    numnp2d = numnp2dl = (your 3-D nn) / 2      <- the 2-D mesh's node count
-    numel2d = numel2dl = your 3-D ne            <- the 2-D mesh's element count
-
-which collapses the formula to nn = 2*numnp2d, ne = numel2d*1 - i.e. exactly
-a single-layer spanwise extrusion of the 2-D mesh, matching how your 3-D
-meshes were actually built (nn_3D = 2 * nn_2D was verified directly against
-your uploaded files).
 
 mesh.info also carries boundary-group node lists (nbndry2d groups), which
 parseinput.F uses ONLY to build `bump_bn`/`node_bn` (airfoil shape-optimizer
@@ -61,7 +48,56 @@ mesh.data / mesh1.data are FIXED-FORMAT text (Fortran formatted read):
 
 import sys
 import numpy as np
-from gmsh_to_vayu import read_gmsh
+
+
+def read_gmsh(path):
+    with open(path, "r") as f:
+        lines = f.readlines()
+
+    nodes = {}
+    node_order = []
+    elements = []  # list of (etype, phys_tag, [gmsh node ids])
+    physical_names = {}  # (dim, tag) -> name
+
+    i, n = 0, len(lines)
+    while i < n:
+        line = lines[i].strip()
+        if line == "$PhysicalNames":
+            i += 1
+            cnt = int(lines[i].strip()); i += 1
+            for _ in range(cnt):
+                parts = lines[i].split(); i += 1
+                dim, tag = int(parts[0]), int(parts[1])
+                name = parts[2].strip().strip('"')
+                physical_names[(dim, tag)] = name
+            i += 1  # $EndPhysicalNames
+        elif line == "$Nodes":
+            i += 1
+            cnt = int(lines[i].strip()); i += 1
+            for _ in range(cnt):
+                parts = lines[i].split(); i += 1
+                nid = int(parts[0])
+                x, y, z = float(parts[1]), float(parts[2]), float(parts[3])
+                nodes[nid] = (x, y, z)
+                node_order.append(nid)
+            i += 1  # $EndNodes
+        elif line == "$Elements":
+            i += 1
+            cnt = int(lines[i].strip()); i += 1
+            for _ in range(cnt):
+                parts = lines[i].split(); i += 1
+                etype = int(parts[1])
+                ntags = int(parts[2])
+                tags = [int(t) for t in parts[3:3 + ntags]]
+                nodelist = [int(t) for t in parts[3 + ntags:]]
+                phys_tag = tags[0] if ntags > 0 else 0
+                elements.append((etype, phys_tag, nodelist))
+            i += 1  # $EndElements
+        else:
+            i += 1
+
+    return nodes, node_order, elements, physical_names
+
 
 
 def write_mesh_info_data(msh_path, out_dir, boundary_group_order=("inlet", "outlet", "topwall", "ground", "airfoil")):
@@ -155,14 +191,14 @@ def write_mesh_info_data(msh_path, out_dir, boundary_group_order=("inlet", "outl
     write_mesh_data(f"{out_dir}/mesh.data", ien2d, coords)
     write_mesh_data(f"{out_dir}/mesh1.data", ien2d, coords)  # identical, per the wing_sli=nslices=2 trick
 
+    print()
     print(f"--- {msh_path} ---")
     print(f"  numnp2d={numnp2d}  numel2d={numel2d}")
     for name in boundary_group_order:
         print(f"  boundary group '{name}': {len(group_nodes[name])} nodes"
               + ("" if name_to_tag.get(name) is not None else "  [NOT FOUND in physical groups!]"))
     print(f"  wrote mesh.info, mesh.data, mesh1.info, mesh1.data -> {out_dir}")
-    print(f"  ADD TO fsi.in: wing_sli 2   and   nslices 2")
-    print(f"  (this makes nn = 2*{numnp2d} = {2*numnp2d}, ne = {numel2d} match your actual 3-D mesh)")
+    print()
 
 
 if __name__ == "__main__":

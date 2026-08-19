@@ -43,10 +43,6 @@ def make_pair(unfilled_msh, filled_msh, out_dir):
     print(f"  mesh.info,  mesh.data   <- {unfilled_msh}  (root/wing cross-section)")
     print(f"  mesh1.info, mesh1.data  <- {filled_msh}  (beyond-tip cap)")
     print()
-    print("Reminder: wing_sli=2 and nslices=2 must be set in fsi.in for the nn/ne")
-    print("sizing formula to match these two mesh files. If your real production")
-    print("mesh has more spanwise wing stations before the tip cap, tell me the")
-    print("actual wing_sli/nslices you intend and I'll recompute this.")
 
 
 if __name__ == "__main__":
