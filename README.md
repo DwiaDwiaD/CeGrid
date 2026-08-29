@@ -63,11 +63,19 @@ Example:
 | `-t, --bl-thickness` | Total boundary-layer thickness | `0.1` |
 | `-n, --num-bl-layers` | Number of boundary-layer layers | `100` |
 | `-g, --ground` | Ground distance from trailing edge | `1` |
+| `-ar, --airfoil-resolution` | Number of elements on airfoil | `~250` |
+| `-gr, --ground-resolution` | Number of elements on ground | `200` |
+| `-wr, --wake-resolution` | Number of elements in wake | `300` |
+| `-ir, --inlet-resolution` | Number of elements in inlet | `40` |
+| `-or, --outlet-resolution` | Number of elements in outlet | `200` |
 | `-d, --dim` | Mesh dimension (`2D`/`3D`) | `2D` |
 | `-x, --filled` | Generate filled airfoil volume | Disabled |
 | `-p, --plot` | Plot generated geometry | Disabled |
+| `-b, --both` | Generate both filled and unfilled meshes that share node numbering and coordinates | Disabled |
 | `-q, --quads` | Recombine mesh into quadrilateral elements | Disabled |
 | `-h, --help` | Display help | |
+
+NOTE: this is a non-exhaustive list. To know all the available options, consult the --help section after installing or the related section in `CeGrid` file
 
 ---
 

@@ -209,7 +209,7 @@ Options:
         Plot the generated BL boundary curve and airfoil
 
   -b, --both
-        Generate both filled and unfilled airfoil meshes(2D only), that share the node numbering scheme.
+        Generate both filled and unfilled airfoil meshes(2D only), that share the node numbering scheme and exact coordinates.
         (NOTE: Gmsh does NOT guarantee this automatically on separate runs, which is why this option is provided)
         (This was developed to ease our stacking code)
   

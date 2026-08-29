@@ -152,11 +152,12 @@ x_new, y_new = splev(u_new, tck)
 x_new[0], y_new[0] = te_point[0], te_point[1]
 x_new[-1], y_new[-1] = te_point[0], te_point[1]
 
-u_thick_hi = float(u_new[np.argmax(y_new)])
-u_thick_lo = float(u_new[np.argmin(y_new)])
-
 thick_hi = int(np.argmax(y_new))
 thick_lo = int(np.argmin(y_new))
+
+u_thick_hi = float(u_new[thick_hi])
+u_thick_lo = float(u_new[thick_lo])
+
 
 if thick_hi<thick_lo: #anticlockwise, TE-LE-TE
     x_top = x_new[:thick_hi]
