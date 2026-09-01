@@ -125,9 +125,9 @@ Dilate {{0,0,0}, {chord, chord, 1}} {
 }
 
 // ----- ROTATE (AoA) -----
-Rotate {{0,0,1}, {0,0,0}, -AoA_rad} {
-    Curve{1,2,3,4};
-}
+//Rotate {{0,0,1}, {0,0,0}, -AoA_rad} {
+//    Curve{1,2,3,4};
+//}
 
 OutUpper = 30000;
 WakeUpper = TEoff_up;
@@ -142,8 +142,8 @@ tLow = BLAirfoilLow * chord;
 xTE = 0;
 yTE = 0;
 
-Point(OutUpper) = {rear,yTE + tUp*Cos(AoA_rad),0};
-Point(OutLower) = {rear,yTE - tLow*Cos(AoA_rad),0};
+Point(OutUpper) = {rear,yTE + tUp,0};
+Point(OutLower) = {rear,yTE - tLow,0};
 Point(OutMid) = {rear,yTE,0};
 
 
@@ -179,12 +179,9 @@ Physical Point("LE") = {LEpoint};
 
 Line(21) = {20001,20002}; //farfield
 Line(22) = {20002,20003}; //inlet
-Line(23) = {20003,20004}; //ground-BLGround
-Line(24) = {20004,OutLower};
 //Lines from the structured part
 Line(25) = {OutUpper,20001};
 
-Transfinite Curve{23} = groundres;
 Transfinite Curve{22} = inletres;
 Transfinite Curve{25} = outletres; // NOTE: this is only for part of the outlet
 
@@ -194,11 +191,25 @@ Transfinite Curve{25} = outletres; // NOTE: this is only for part of the outlet
 //Line(223) = {20014,20013};
 //Line(233) = {20013,20003};
 
+If (BLAirfoilUp>ground)
+    Line(23) = {20003,GNDpoint};
+    Transfinite Curve{23} = Floor(groundres/2);
+    Curve Loop(100) = {21,22,23,-4,-3,51,25}; //Unstructured outer domain block
+    outlet_curves[]   = {57,-50,25};
+    ground_curves[]   = {23,5,56};
+Else
+    Line(23) = {20003,20004}; //ground-BLGround
+    Line(24) = {20004,OutLower};
+    Transfinite Curve{23} = groundres;
+    Curve Loop(100) = {21,22,23,24,-56,-5,-4,-3,51,25}; //Unstructured outer domain block
+    outlet_curves[]   = {24,57,-50,25};
+    ground_curves[]   = {23};
+EndIf
 
+Compound Curve{4,5};
 // airfoil edges are 1 & 2
-Curve Loop(100) = {21,22,23,24,-56,-4,-3,51,25}; //Unstructured outer domain block
 Curve Loop(200) = {60,-1,62,3}; //BLupper domain block
-Curve Loop(300) = {60,2,63,-4}; //BLlower domain block
+Curve Loop(300) = {60,2,63,-5,-4}; //BLlower domain block
 Curve Loop(400) = {61,62,51,50}; //upperwake domain block
 Curve Loop(500) = {61,63,56,57}; //lowerwake domain block
 
@@ -217,7 +228,8 @@ Plane Surface(99) = {999}; //airfoil surface
 Transfinite Curve{-1} = N_UP Using Bump 0.25;
 Transfinite Curve{-3} = N_UP Using Progression 0.98;
 Transfinite Curve{2} = N_LOW Using Bump 0.25;
-Transfinite Curve{4} = N_LOW Using Progression 0.97;
+Transfinite Curve{4} = N4; // Using Progression 0.97;
+Transfinite Curve{5} = N5; // Using Progression 0.97;
 Transfinite Curve{51,56,61} = wakeres;
 Transfinite Curve{63,-57} = NUMlayers Using Progression grTElow;
 Transfinite Curve{62,-50} = NUMlayers Using Progression grTEup;
@@ -227,7 +239,7 @@ Transfinite Curve{60} = NUMlayers Using Progression 2-grLE;
 //Transfinite Curve{213,233} = 50;
 
 Transfinite Surface(40); //BL surface
-Transfinite Surface(41); //BL surface
+Transfinite Surface(41) = {LEoff, LEpoint, TEpoint, WakeLower}; //BL surface
 Transfinite Surface(42); //upperwake surface
 Transfinite Surface(43); //lowerwake surface
 
@@ -488,11 +500,10 @@ ElseIf ((dim == 2) && (filled == True))
     Color {255,255,150} { Surface{43}; }   // wake lower
 
     Physical Surface("fluid") = {30,40,41,42,43,99};
-
-    Physical Curve("inlet")   = {22};
-    Physical Curve("outlet")  = {24,57,-50,25};
-    Physical Curve("topwall")   = {21};
-    Physical Curve("ground")   = {23};
+    Physical Curve("outlet")   = outlet_curves[];
+    Physical Curve("ground")   = ground_curves[];
+    Physical Curve("inlet")    = {22};
+    Physical Curve("topwall")  = {21};
     Physical Curve("airfoil") = {1,2};
 
 ElseIf ((dim == 2) && (filled == False))
@@ -506,11 +517,10 @@ ElseIf ((dim == 2) && (filled == False))
     Color {255,255,150} { Surface{43}; }   // wake lower
 
     Physical Surface("fluid") = {30,40,41,42,43};
-
-    Physical Curve("inlet")   = {22};
-    Physical Curve("outlet")  = {24,57,-50,25};
-    Physical Curve("topwall")   = {21};
-    Physical Curve("ground")   = {23};
+    Physical Curve("outlet")   = outlet_curves[];
+    Physical Curve("ground")   = ground_curves[];
+    Physical Curve("inlet")    = {22};
+    Physical Curve("topwall")  = {21};
     Physical Curve("airfoil") = {1,2};
 
 Else

@@ -196,9 +196,9 @@ def read_fixed_width_mesh(path, numnp, numel):
     ien = np.asarray(conn_vals, dtype=np.int32).reshape(numel, 3)
 
     # Coordinates start after the line containing the final connectivity
-    # values. This is the natural layout for a whitespace-separated mesh
-    # writer.
-    coord_text = "\n".join(lines[consumed_lines:])
+    # values. The connectivity is whitespace-separated, while the
+    # coordinate section remains fixed-width (5e16.9).
+    coord_text = "".join(lines[consumed_lines:])
 
     nreal = 1 + 2 * numnp
     need = 16 * nreal

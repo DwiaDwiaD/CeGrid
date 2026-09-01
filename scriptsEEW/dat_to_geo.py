@@ -21,7 +21,8 @@ SCRIPT_DIR = sys.argv[2]
 # Flexible arguments to support both uniform and variable thickness
 BL_TE_UPPER = float(sys.argv[3])
 GROUND = float(sys.argv[4])
-GNDClr = 0.01
+# GNDClr = 0.01
+GNDClr = 0
 AOA_DEG = float(sys.argv[5])
 first_layerH = float(sys.argv[6])
 NUMlayers = float(sys.argv[7])
@@ -257,6 +258,17 @@ if (x_top[0] == 1) and (y_top[0] == 0): # i.e. if anticlockwise, TE-LE-TE
 
 x_off_nose, y_off_nose = Rotate(AOA_DEG, (x_nose, y_nose))
 
+translate = (-te_point[0],-te_point[1])
+x_off_nose, y_off_nose = Translate(translate,(x_off_nose,y_off_nose))
+x_off_top, y_off_top = Translate(translate,(x_off_top,y_off_top))
+x_off_bot, y_off_bot = Translate(translate,(x_off_bot,y_off_bot))
+
+x_off_nose, y_off_nose = Rotate(-AOA_DEG, (x_off_nose, y_off_nose))
+x_off_top,y_off_top= Rotate(-AOA_DEG, (x_off_top,y_off_top))
+x_off_bot,y_off_bot= Rotate(-AOA_DEG, (x_off_bot,y_off_bot))
+
+y_off_bot = -BL_TE_LOWER*np.ones_like(y_off_bot)
+
 if (x_top[0] == 1) and (y_top[0] == 0): # i.e. if anticlockwise, TE-LE-TE
     x_off = np.concatenate((x_off_top, x_off_nose, x_off_bot))
     y_off = np.concatenate((y_off_top, y_off_nose, y_off_bot))
@@ -311,13 +323,55 @@ x_new, y_new = Translate(translate,(x_new,y_new))
 # REENFORCING TE
 x_new[0],y_new[0] = (0,0)
 
-x_off, y_off = Translate(translate,(x_off,y_off))
+# translate = (-te_point[0],-te_point[1])
+# x_off, y_off = Translate(translate,(x_off,y_off))
 x_glob, y_glob = Rotate(-AOA_DEG, (x_new,y_new))
 
 # Rotate Boundary Layer Edge Points to Global Frame
-x_off_glob, y_off_glob = Rotate(-AOA_DEG, (x_off,y_off))
+# x_off_glob, y_off_glob = Rotate(-AOA_DEG, (x_off,y_off))
+x_off_glob, y_off_glob = (x_off,y_off)
+# y_off_glob[-1, -len(y_bot)]
 split_air = n_up
 split_off = np.argmin(np.abs(y_off_glob - np.sin(np.radians(AOA_DEG))))
+N_UP = int(NRESAMPLE*arc_off[split_off])
+N_LOW = NRESAMPLE - N_UP
+
+ground_pts = np.where(
+    y_off <= -BL_TE_LOWER * (1 - 10**-3)
+)[0]
+
+i_left = ground_pts[np.argmin(x_off[ground_pts])]
+
+# Clamp the remaining lower offset boundary to the ground
+y_off[i_left:] = -BL_TE_LOWER
+y_off_glob[i_left:] = -BL_TE_LOWER
+
+gnd_pt = n + 1 + i_left
+
+# -------------------------------------------------
+# Distribute lower BL nodes between curves 4 and 5
+# -------------------------------------------------
+
+s_LE  = arc_off[split_off]
+s_GND = arc_off[i_left]
+
+# Normalized arc lengths of curves 4 and 5
+L4 = s_GND - s_LE
+L5 = 1.0 - s_GND
+
+Ltotal = L4 + L5
+
+# N_LOW is the desired TOTAL number of nodes
+# along curves 4 + 5, including the shared GND point.
+N_segments = N_LOW - 1
+
+# Allocate elements proportionally to physical arc length
+Nseg4 = int(round(N_segments * L4 / Ltotal))
+Nseg5 = N_segments - Nseg4
+
+# Convert element counts to node counts
+N4 = Nseg4 + 1
+N5 = Nseg5 + 1
 
 # Airfoil
 airfoil_up_ids = list(range(1, split_air + 2))
@@ -325,25 +379,27 @@ airfoil_low_ids = list(range(split_air + 1, n)) + [1]
 
 # Offset
 off_up_ids = list(range(n + 1, n + split_off + 2))
-off_low_ids = list(range(n + split_off + 1, 2*n + 1))
+off_low_ids = list(range(n + split_off + 1,gnd_pt + 1))
+off_gnd_ids = list(range(gnd_pt, 2*n + 2))
 
 with open(f"{SCRIPT_DIR}/scriptsEEW/Airfoil_points.geo", "w") as f:
     f.write("// Airfoil points\n")
-    for i, (xv, yv) in enumerate(zip(x_new, y_new)):
-        f.write(f"Point({i + 1}) = {{{xv}, {yv}, 0, 1.0}};\n")
+    for i, (xv, yv) in enumerate(zip(x_glob, y_glob)):
+        f.write(f"Point({i + 1}) = {{{xv:.6f}, {yv:.6f}, 0, 1.0}};\n")
 
     f.write("\n// Offset boundary points\n")
     for i, (xv, yv) in enumerate(zip(x_off, y_off)):
-        f.write(f"Point({n + i + 1}) = {{{xv}, {yv}, 0, 1.0}};\n")
+        f.write(f"Point({n + i + 1}) = {{{xv:.6f}, {yv:.6f}, 0, 1.0}};\n")
 
     f.write(f"\nBSpline(1) = {{{','.join(map(str, airfoil_up_ids))}}}; // Airfoil Upper\n")
     f.write(f"BSpline(2) = {{{','.join(map(str, airfoil_low_ids))}}}; // Airfoil Lower\n")
     f.write(f"BSpline(3) = {{{','.join(map(str, off_up_ids))}}}; // Offset Upper\n")
     f.write(f"BSpline(4) = {{{','.join(map(str, off_low_ids))}}}; // Offset Lower\n")
+    f.write(f"BSpline(5) = {{{','.join(map(str, off_gnd_ids))}}}; // Offset Ground\n")
 
     # Export dynamic point counts so Transfinite Meshing matches exactly
-    f.write(f"\nN_UP = {int(NRESAMPLE*arc_off[split_off])};\n")
-    f.write(f"N_LOW = {NRESAMPLE - int(NRESAMPLE*(arc_off[split_off]))};\n")
+    f.write(f"\nN_UP = {N_UP};\n")
+    f.write(f"N_LOW = {N_LOW};\n")
     # f.write(f"\nN_UP = {int(n_up)};\n")
     # f.write(f"N_LOW = {int(n_low)};\n")
 
@@ -351,14 +407,16 @@ with open(f"{SCRIPT_DIR}/scriptsEEW/Airfoil_points.geo", "w") as f:
     f.write(f"LEoff = {n + split_off + 1};\n")
     f.write(f"TEpoint = {1};\n")
     f.write(f"TEoff_up = {n + 1};\n")
-    f.write(f"TEoff_low = {2 * n};\n")
+    f.write(f"TEoff_low = {2 * n + 1};\n")
+    f.write(f"GNDpoint = {gnd_pt};\n")
     f.write(f"BLAirfoilUp = {BL_TE_UPPER:.4};\n")
     f.write(f"BLAirfoilLow = {BL_TE_LOWER:.4};\n")
     f.write(f"hc = {GROUND};\n")
-    f.write(f"grTEup = {growthR_TEup:.4f};\n")
-    f.write(f"grTElow = {growthR_TElow:.4f};\n")
-    f.write(f"grLE = {growthR_LE:.4f};\n")
+    f.write(f"grTEup = {growthR_TEup:.6f};\n")
+    f.write(f"grTElow = {growthR_TElow:.6f};\n")
+    f.write(f"grLE = {growthR_LE:.6f};\n")
     f.write(f"NUMlayers = {NUMlayers};\n")
+    f.write(f"N4={N4}; \nN5={N5};\n")
 
 # -------------------------------------------------
 # Diagnostic Plotting (Global Frame Rendering)
@@ -371,6 +429,7 @@ if PLOT:
     plt.figure(figsize=(10, 5))
     plt.plot(x_glob, y_glob, 'k.-', linewidth=1.5, markersize=3, label='Resampled Airfoil (Global)')
     plt.plot(x_off_glob, y_off_glob, 'r.-', linewidth=1.5, markersize=3, label='Boundary Layer Edge (Global)')
+    plt.plot(x_off_glob[i_left],y_off_glob[i_left], 's')
 
     # Draw tie-lines cleanly in the Global Frame
     for i in range(0, n, 4):
