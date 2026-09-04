@@ -334,6 +334,7 @@ x_off_glob, y_off_glob = (x_off,y_off)
 split_air = n_up
 split_off = np.argmin(np.abs(y_off_glob - np.sin(np.radians(AOA_DEG))))
 N_UP = int(NRESAMPLE*arc_off[split_off])
+N_UP = NRESAMPLE//2
 N_LOW = NRESAMPLE - N_UP
 
 ground_pts = np.where(

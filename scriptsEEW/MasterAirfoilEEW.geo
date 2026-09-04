@@ -191,9 +191,9 @@ Transfinite Curve{25} = outletres; // NOTE: this is only for part of the outlet
 //Line(223) = {20014,20013};
 //Line(233) = {20013,20003};
 
-If (BLAirfoilUp>ground)
+If (BLAirfoilUp>=ground)
     Line(23) = {20003,GNDpoint};
-    Transfinite Curve{23} = Floor(groundres/2);
+    Transfinite Curve{23} = Floor(groundres/2) Using Progression 0.98;
     Curve Loop(100) = {21,22,23,-4,-3,51,25}; //Unstructured outer domain block
     outlet_curves[]   = {57,-50,25};
     ground_curves[]   = {23,5,56};
@@ -224,13 +224,14 @@ Plane Surface(42) = {400}; //upperwake surface
 Plane Surface(43) = {500}; //lowerwake surface
 Plane Surface(99) = {999}; //airfoil surface
 
-
-Transfinite Curve{-1} = N_UP Using Bump 0.25;
-Transfinite Curve{-3} = N_UP Using Progression 0.98;
-Transfinite Curve{2} = N_LOW Using Bump 0.25;
+AirfoilBump = 0.25;
+Transfinite Curve{-1} = N_UP Using Bump AirfoilBump;
+Transfinite Curve{-3} = N_UP Using Progression 0.99;
+Transfinite Curve{2} = N_LOW Using Bump AirfoilBump;
 Transfinite Curve{4} = N4; // Using Progression 0.97;
-Transfinite Curve{5} = N5; // Using Progression 0.97;
-Transfinite Curve{51,56,61} = wakeres;
+Transfinite Curve{5} = N5 Using Progression 0.98;
+Transfinite Curve{51,56,-61} = wakeres Using Progression 1.01;
+Transfinite Curve{51} = wakeres Using Progression 1.005;
 Transfinite Curve{63,-57} = NUMlayers Using Progression grTElow;
 Transfinite Curve{62,-50} = NUMlayers Using Progression grTEup;
 Transfinite Curve{60} = NUMlayers Using Progression 2-grLE;
